@@ -1,4 +1,4 @@
-package SPI_memory
+package hello
 
 import chisel3._
 import chisel3.util._
