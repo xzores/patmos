@@ -102,3 +102,11 @@ c/cmp/nocinit.c
 emulator.h
 emul_api.h
 sim_api.h 
+hardware/test_run_dir/Write_read_test_software_should_pass/veri_api.h
+hardware/test_run_dir/Write_read_test_software_should_pass/OCPburst_SPI_memory.lo.fir
+hardware/test_run_dir/Write_read_test_software_should_pass/OCPburst_SPI_memory.fir
+hardware/test_run_dir/Write_read_test_software_should_pass/OCPburst_SPI_memory.anno.json
+hardware/test_run_dir/Write_read_test_software_should_pass/hello.v
+hardware/test_run_dir/Write_read_test_software_should_pass/hello.fir
+hardware/test_run_dir/Write_read_test_software_should_pass/hello.anno.json
+hardware/test_run_dir/Write_read_test_software_should_pass/hello-harness.cpp

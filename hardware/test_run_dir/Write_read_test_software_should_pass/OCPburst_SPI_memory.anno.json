@@ -5,54 +5,9 @@
   },
   {
     "class":"firrtl.transforms.CombinationalPath",
-    "sink":"~OCPburst_SPI_memory|OCPburst_SPI_memory>io_Valid",
+    "sink":"~OCPburst_SPI_memory|OCPburst_SPI_memory>io_MOSI",
     "sources":[
-      "~OCPburst_SPI_memory|OCPburst_SPI_memory>io_Operation"
-    ]
-  },
-  {
-    "class":"firrtl.transforms.CombinationalPath",
-    "sink":"~OCPburst_SPI_memory|OCPburst_SPI_memory>io_ReadData_0",
-    "sources":[
-      "~OCPburst_SPI_memory|OCPburst_SPI_memory>io_Operation"
-    ]
-  },
-  {
-    "class":"firrtl.transforms.CombinationalPath",
-    "sink":"~OCPburst_SPI_memory|OCPburst_SPI_memory>io_SI",
-    "sources":[
-      "~OCPburst_SPI_memory|OCPburst_SPI_memory>io_Operation",
-      "~OCPburst_SPI_memory|OCPburst_SPI_memory>io_ReadCmd",
-      "~OCPburst_SPI_memory|OCPburst_SPI_memory>io_ReadAddress",
-      "~OCPburst_SPI_memory|OCPburst_SPI_memory>io_WriteCmd"
-    ]
-  },
-  {
-    "class":"firrtl.transforms.CombinationalPath",
-    "sink":"~OCPburst_SPI_memory|OCPburst_SPI_memory>io_ReadData_2",
-    "sources":[
-      "~OCPburst_SPI_memory|OCPburst_SPI_memory>io_Operation"
-    ]
-  },
-  {
-    "class":"firrtl.transforms.CombinationalPath",
-    "sink":"~OCPburst_SPI_memory|OCPburst_SPI_memory>io_ReadData_3",
-    "sources":[
-      "~OCPburst_SPI_memory|OCPburst_SPI_memory>io_Operation"
-    ]
-  },
-  {
-    "class":"firrtl.transforms.CombinationalPath",
-    "sink":"~OCPburst_SPI_memory|OCPburst_SPI_memory>io_CE",
-    "sources":[
-      "~OCPburst_SPI_memory|OCPburst_SPI_memory>io_Operation"
-    ]
-  },
-  {
-    "class":"firrtl.transforms.CombinationalPath",
-    "sink":"~OCPburst_SPI_memory|OCPburst_SPI_memory>io_ReadData_1",
-    "sources":[
-      "~OCPburst_SPI_memory|OCPburst_SPI_memory>io_Operation"
+      "~OCPburst_SPI_memory|OCPburst_SPI_memory>io_OCP_interface_M_Addr"
     ]
   },
   {
