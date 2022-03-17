@@ -1,3 +1,5 @@
+package SPI_memory
+
 import chisel3._
 import chisel3.util._
 import SPI_CMDS._
@@ -8,7 +10,6 @@ object SPI_CMDS {
   val CMDSPIRead = 3.U(8.W)
   val CMDSPIWrite = 2.U(8.W)
 }
-
 
 class SPI extends Module {
   val io = IO(new Bundle {
