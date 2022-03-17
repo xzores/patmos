@@ -1,8 +1,10 @@
+package SPI_memory
+
 import chisel3._
 import chisel3.util._
 import OcpCmd._
 import OcpResp._
-
+import ocp._
 
 object OcpCmd {
   val IDLE = "b000".U(3.W)
@@ -17,8 +19,11 @@ object OcpResp {
   val ERR  = "b11".U(2.W)
 }
 
-class Memory_interface extends Module {
+class OCPburst_SPI_memory extends Module {
   val io = IO(new Bundle {
+
+    val OCP_interface = new OcpBurstMasterPort(32, 32, 0); //TODO what is burstLen
+
     val MCmd = Input(UInt(4.W))
     val Address = Input(UInt(32.W))
     val Data = Input(UInt(32.W))
