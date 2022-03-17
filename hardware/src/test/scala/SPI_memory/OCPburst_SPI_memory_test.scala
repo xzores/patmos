@@ -9,7 +9,7 @@ class OCPburst_SPI_memory_test extends AnyFlatSpec with ChiselScalatestTester
   "Write read test software" should "pass" in {
     test(new OCPburst_SPI_memory()) { dut =>
 
-      dut.io.OCP_interface.CmdAccept.poke();
+      //dut.io.OCP_interface.CmdAccept.poke();
 
 
       dut.clock.step ()
