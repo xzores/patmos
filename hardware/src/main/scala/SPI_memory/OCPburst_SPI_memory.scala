@@ -73,6 +73,8 @@ class OCPburst_SPI_memory extends Module {
     is(read) {
       SPI.io.Address := io.OCP_interface.M.Addr;
       SPI.io.ReadEnable := true.B
+      io.OCP_interface.S.CmdAccept := true.B;
+
       when(SPI.io.DataValid) {
         io.OCP_interface.S.Data := SPI.io.ReadData(CntReg)
         CntReg := CntReg + 1.U
