@@ -24,21 +24,16 @@ class OCPburst_SPI_memory extends Module {
 
     val OCP_interface = new OcpBurstSlavePort(24, 32, 0); //TODO what is burstLen
 
-    val SData = Output(UInt(32.W))
-    val SResp = Output(UInt(4.W))
-    val SCmdAccept = Output(Bool())
-    val SDataAccept = Output(Bool())
-
     val CE = Output(Bool())
     val MOSI = Output(Bool())
     val MISO = Input(Bool())
   })
 
   //Defaults
-  io.SResp := 0.U
-  io.SCmdAccept := false.B
-  io.SDataAccept := false.B
-  io.SData := 0.U
+  io.OCP_interface.S.Resp := 0.U
+  io.OCP_interface.S.CmdAccept := false.B
+  io.OCP_interface.S.DataAccept := false.B
+  io.OCP_interface.S.Data := 0.U
 
 
   val SPI = Module(new SPI)
@@ -79,19 +74,19 @@ class OCPburst_SPI_memory extends Module {
       SPI.io.Address := io.OCP_interface.M.Addr;
       SPI.io.ReadEnable := true.B
       when(SPI.io.DataValid) {
-        io.SData := SPI.io.ReadData(CntReg)
+        io.OCP_interface.S.Data := SPI.io.ReadData(CntReg)
         CntReg := CntReg + 1.U
         when(CntReg === 3.U) {
           CntReg := 0.U
           StateReg := idle
         }
         SPI.io.ReadEnable := false.B
-        io.SResp := DVA
+        io.OCP_interface.S.Resp := DVA
       }
     }
     is(sampleData) {
-      io.SCmdAccept := true.B
-      io.SDataAccept := true.B
+      io.OCP_interface.S.CmdAccept := true.B
+      io.OCP_interface.S.DataAccept := true.B
 
       when(io.OCP_interface.M.DataValid.toBool()) {
         WriteData(CntReg) := io.OCP_interface.M.Data;
@@ -112,7 +107,7 @@ class OCPburst_SPI_memory extends Module {
       SPI.io.ByteEnable := (WriteByteEN(3) << 12).asUInt + (WriteByteEN(2) << 8).asUInt + (WriteByteEN(1) << 4).asUInt + WriteByteEN(0)
 
       when(SPI.io.WriteCompleted) {
-        io.SResp := 1.U
+        io.OCP_interface.S.Resp := 1.U
         StateReg := idle
       }
     }
