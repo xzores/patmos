@@ -22,13 +22,7 @@ object OcpResp {
 class OCPburst_SPI_memory extends Module {
   val io = IO(new Bundle {
 
-    val OCP_interface = new OcpBurstMasterPort(32, 32, 0); //TODO what is burstLen
-
-    val MCmd = Input(UInt(4.W))
-    val Address = Input(UInt(32.W))
-    val Data = Input(UInt(32.W))
-    val ByteEn = Input(UInt(4.W))
-    val DataValid = Input(Bool())
+    val OCP_interface = new OcpBurstSlavePort(24, 32, 0); //TODO what is burstLen
 
     val SData = Output(UInt(32.W))
     val SResp = Output(UInt(4.W))
@@ -72,7 +66,7 @@ class OCPburst_SPI_memory extends Module {
 
   switch(StateReg) {
     is(idle) {
-      switch(io.MCmd) {
+      switch(io.OCP_interface.M.Cmd) {
         is(WR) {
           StateReg := sampleData
         }
@@ -82,7 +76,7 @@ class OCPburst_SPI_memory extends Module {
       }
     }
     is(read) {
-      SPI.io.Address := io.Address
+      SPI.io.Address := io.OCP_interface.M.Addr;
       SPI.io.ReadEnable := true.B
       when(SPI.io.DataValid) {
         io.SData := SPI.io.ReadData(CntReg)
@@ -99,9 +93,9 @@ class OCPburst_SPI_memory extends Module {
       io.SCmdAccept := true.B
       io.SDataAccept := true.B
 
-      when(io.DataValid) {
-        WriteData(CntReg) := io.Data
-        WriteByteEN(CntReg) := io.ByteEn
+      when(io.OCP_interface.M.DataValid.toBool()) {
+        WriteData(CntReg) := io.OCP_interface.M.Data;
+        WriteByteEN(CntReg) := io.OCP_interface.M.DataByteEn
         CntReg := CntReg + 1.U
       }
 
@@ -111,8 +105,7 @@ class OCPburst_SPI_memory extends Module {
       }
     }
     is(write) {
-      // OCP gives 32-bit address, RAM expects 24-bit, drop upper 8 bit
-      SPI.io.Address := io.Address(23, 0)
+      SPI.io.Address := io.OCP_interface.M.Addr;
       SPI.io.WriteEnable := true.B
 
       SPI.io.WriteData := WriteData
