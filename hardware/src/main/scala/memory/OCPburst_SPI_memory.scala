@@ -1,147 +1,123 @@
-
-
 import chisel3._
 import chisel3.util._
+import OcpCmd._
+import OcpResp._
 
-class OCPburst_SPI_memory() extends Module {
+
+object OcpCmd {
+  val IDLE = "b000".U(3.W)
+  val WR   = "b001".U(3.W)
+  val RD   = "b010".U(3.W)
+}
+
+object OcpResp {
+  val NULL = "b00".U(2.W)
+  val DVA  = "b01".U(2.W)
+  val FAIL = "b10".U(2.W)
+  val ERR  = "b11".U(2.W)
+}
+
+class Memory_interface extends Module {
   val io = IO(new Bundle {
-    val Operation = Input(UInt(2.W))
+    val MCmd = Input(UInt(4.W))
+    val Address = Input(UInt(32.W))
+    val Data = Input(UInt(32.W))
+    val ByteEn = Input(UInt(4.W))
+    val DataValid = Input(Bool())
 
-    //OCP burst pins
-    val ReadAddress = Input(UInt(32.W))
-    val ReadData = Output(Vec(4, UInt(32.W)))
-    val ReadCmd = Input(UInt(8.W))
+    val SData = Output(UInt(32.W))
+    val SResp = Output(UInt(4.W))
+    val SCmdAccept = Output(Bool())
+    val SDataAccept = Output(Bool())
 
-    val WriteAddress = Input(UInt(32.W))
-    val WriteData = Input(Vec(4, UInt(32.W)))
-    val WriteCmd = Input(UInt(8.W))
-
-    val Valid = Output(Bool())
-
-
-    //SPI pins
     val CE = Output(Bool())
-    val SI = Output(Bool())
-    val SO = Input(Bool())
+    val MOSI = Output(Bool())
+    val MISO = Input(Bool())
   })
 
-  val StateReg = RegInit(3.U(2.W))
-  val OPCounter = RegInit(0.U(1.W))
-  val CNTReg = RegInit(0.U(8.W))
-
-  val DataReg = RegInit(0.U(128.W))
-
-  StateReg := io.Operation
-
   //Defaults
-  io.CE := true.B
-  io.SI := false.B
-  io.Valid := false.B
+  io.SResp := 0.U
+  io.SCmdAccept := false.B
+  io.SDataAccept := false.B
+  io.SData := 0.U
 
-  io.ReadData(0) := 0.U
-  io.ReadData(1) := 0.U
-  io.ReadData(2) := 0.U
-  io.ReadData(3) := 0.U
 
-  switch(io.Operation) {
-    is(102.U) {
-      // Reset 102 = h66
-      CNTReg := CNTReg + 1.U
+  val SPI = Module(new SPI)
+  for(i <- 0 until 4){
+    SPI.io.WriteData(i) := 0.U
+  }
 
-    }
-    is(3.U) {
-      OPCounter := 0.U
-      io.CE := false.B
-    }
-    is(0.U) {
-      //Idle
+  SPI.io.Address := 0.U
+  SPI.io.ReadEnable := false.B
+  SPI.io.WriteEnable := false.B
+  SPI.io.ByteEnable := 0.U
 
-      io.ReadData(0) := DataReg(127,96)
-      io.ReadData(1) := DataReg(95,64)
-      io.ReadData(2) := DataReg(63,32)
-      io.ReadData(3) := DataReg(31,0)
-    }
-    is(1.U) {
-      //Read
-      switch(OPCounter) {
-        is(0.U) {
-          OPCounter := 1.U
-          io.CE := false.B
+
+  io.MOSI := SPI.io.MOSI
+  io.CE := SPI.io.CE
+  SPI.io.MISO := io.MISO
+
+  val idle :: read :: sampleData :: write :: Nil = Enum(4)
+  val StateReg = RegInit(idle)
+
+  val CntReg = RegInit(0.U(8.W))
+
+  val WriteData = Reg(Vec(4,UInt(32.W)))
+  val WriteByteEN = Reg(Vec(4, UInt(4.W)))
+
+  switch(StateReg) {
+    is(idle) {
+      switch(io.MCmd) {
+        is(WR) {
+          StateReg := sampleData
         }
-        is(1.U) {
-          io.CE := false.B
-          io.SI := io.ReadCmd(CNTReg)
-          CNTReg := CNTReg + 1.U
-
-          when(CNTReg === 7.U) {
-            CNTReg := 0.U
-            OPCounter := 1.U
-          }
-        }
-        is(2.U) {
-          io.CE := false.B
-          io.SI := io.ReadAddress(CNTReg)
-          CNTReg := CNTReg + 1.U
-
-          when(CNTReg === 23.U) {
-            CNTReg := 0.U
-            OPCounter := 2.U
-          }
-        }
-        is(3.U) {
-          io.CE := false.B
-          DataReg := Cat(DataReg, io.SO.asUInt)
-
-          CNTReg := CNTReg + 1.U
-
-          when(CNTReg === 127.U) {
-            io.CE := true.B
-            CNTReg := 0.U
-            OPCounter := 0.U
-            io.Valid := true.B
-          }
+        is(RD) {
+          StateReg := read
         }
       }
     }
-    is(2.U){
-      //Write
-      switch(OPCounter){
-        is(0.U) {
-          io.CE := false.B
-          OPCounter := 1.U
-          //Added so CE drops a single clk cycle before data transfer
+    is(read) {
+      SPI.io.Address := io.Address
+      SPI.io.ReadEnable := true.B
+      when(SPI.io.DataValid) {
+        io.SData := SPI.io.ReadData(CntReg)
+        CntReg := CntReg + 1.U
+        when(CntReg === 3.U) {
+          CntReg := 0.U
+          StateReg := idle
         }
-        is(1.U){
-          io.CE := false.B
-          io.SI := io.WriteCmd(CNTReg)
+        SPI.io.ReadEnable := false.B
+        io.SResp := DVA
+      }
+    }
+    is(sampleData) {
+      io.SCmdAccept := true.B
+      io.SDataAccept := true.B
 
-          /*
-          DataReg(127,96) := io.WriteData(3)
-          DataReg(95,64) := io.WriteData(2)
-          DataReg(63,32) := io.WriteData(1)
-          DataReg(31,0) := io.WriteData(0)
-          */
+      when(io.DataValid) {
+        WriteData(CntReg) := io.Data
+        WriteByteEN(CntReg) := io.ByteEn
+        CntReg := CntReg + 1.U
+      }
 
-          DataReg := (io.WriteData(3) << 95).asUInt + (io.WriteData(2) << 63).asUInt + (io.WriteData(1) << 31).asUInt + io.WriteData(0)
+      when(CntReg === 3.U) {
+        CntReg := 0.U
+        StateReg := write
+      }
+    }
+    is(write) {
+      // OCP gives 32-bit address, RAM expects 24-bit, drop upper 8 bit
+      SPI.io.Address := io.Address(23, 0)
+      SPI.io.WriteEnable := true.B
 
-          when(CNTReg === 7.U){
-            OPCounter := 2.U
-            CNTReg := 0.U
-          }
-        }
-        is(2.U){
-          io.CE := false.B
-          io.SI := DataReg(CNTReg)
+      SPI.io.WriteData := WriteData
+      SPI.io.ByteEnable := (WriteByteEN(3) << 12).asUInt + (WriteByteEN(2) << 8).asUInt + (WriteByteEN(1) << 4).asUInt + WriteByteEN(0)
 
-          CNTReg := CNTReg + 1.U
-
-          when(CNTReg === 127.U){
-            CNTReg := 0.U
-            OPCounter := 0.U
-            io.Valid := true.B
-          }
-        }
+      when(SPI.io.WriteCompleted) {
+        io.SResp := 1.U
+        StateReg := idle
       }
     }
   }
 }
+
