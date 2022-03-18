@@ -1,10 +1,12 @@
 package SPI_memory
 
+import util.BlackBoxFlash
 import chisel3._
 import chisel3.util._
 import OcpCmd._
 import OcpResp._
 import ocp._
+
 
 object OcpCmd {
   val IDLE = "b000".U(3.W)
@@ -18,6 +20,7 @@ object OcpResp {
   val FAIL = "b10".U(2.W)
   val ERR  = "b11".U(2.W)
 }
+
 
 class OCPburst_SPI_memory extends Module {
   val io = IO(new Bundle {
@@ -40,6 +43,8 @@ class OCPburst_SPI_memory extends Module {
   for(i <- 0 until 4){
     SPI.io.WriteData(i) := 0.U
   }
+
+  val flash = Module(new BlackBoxFlash)
 
   SPI.io.Address := 0.U
   SPI.io.ReadEnable := false.B
