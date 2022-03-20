@@ -101,7 +101,7 @@ class SPI extends Module {
     is(read) {
       switch(SubStateReg) {
         is(transmitCMD) {
-          io.CE := true.B
+          io.CE := false.B
           io.MOSI := CMDSPIRead(7.U - CntReg)
           CntReg := CntReg + 1.U
 

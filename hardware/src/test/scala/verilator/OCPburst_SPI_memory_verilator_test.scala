@@ -4,8 +4,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 import chiseltest.internal.VerilatorBackendAnnotation
 import chiseltest.experimental.TestOptionBuilder._
 
-import SPI_memory._
-
+/*
 class OCPburst_SPI_memory_verilator_test extends AnyFlatSpec with ChiselScalatestTester
 {
   "Write read test software" should "pass" in {
@@ -27,3 +26,4 @@ class OCPburst_SPI_memory_verilator_test extends AnyFlatSpec with ChiselScalates
     }
   }
 }
+*/

@@ -1,0 +1,21 @@
+[
+  {
+    "class":"firrtl.stage.FirrtlFileAnnotation",
+    "file":"test_run_dir\\Write_OCP_test_software_should_pass\\OCPburst_SPI_memory.lo.fir"
+  },
+  {
+    "class":"firrtl.transforms.CombinationalPath",
+    "sink":"~OCPburst_SPI_memory|OCPburst_SPI_memory>io_MOSI",
+    "sources":[
+      "~OCPburst_SPI_memory|OCPburst_SPI_memory>io_OCP_interface_M_Addr"
+    ]
+  },
+  {
+    "class":"firrtl.EmitCircuitAnnotation",
+    "emitter":"firrtl.LowFirrtlEmitter"
+  },
+  {
+    "class":"firrtl.transforms.BlackBoxTargetDirAnno",
+    "targetDir":"test_run_dir\\Write_OCP_test_software_should_pass"
+  }
+]

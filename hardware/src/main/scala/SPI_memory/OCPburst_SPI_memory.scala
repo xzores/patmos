@@ -2,31 +2,22 @@ package SPI_memory
 
 import chisel3._
 import chisel3.util._
-import OcpCmd._
-import OcpResp._
 import ocp._
-
-object OcpCmd {
-  val IDLE = "b000".U(3.W)
-  val WR   = "b001".U(3.W)
-  val RD   = "b010".U(3.W)
-}
-
-object OcpResp {
-  val NULL = "b00".U(2.W)
-  val DVA  = "b01".U(2.W)
-  val FAIL = "b10".U(2.W)
-  val ERR  = "b11".U(2.W)
-}
+import chisel3.experimental.chiselName
 
 class OCPburst_SPI_memory extends Module {
   val io = IO(new Bundle {
 
-    val OCP_interface = new OcpBurstSlavePort(24, 32, 0); //TODO what is burstLen
+    val OCP_interface = new OcpBurstSlavePort(24, 32, 4)
 
     val CE = Output(Bool())
     val MOSI = Output(Bool())
     val MISO = Input(Bool())
+
+    //DEBUG io
+    val SR = Output(UInt(4.W))
+    val CntReg = Output(UInt(8.W))
+    val SPI_DATA_VALID = Output(Bool());
   })
 
   //Defaults
@@ -46,15 +37,18 @@ class OCPburst_SPI_memory extends Module {
   SPI.io.WriteEnable := false.B
   SPI.io.ByteEnable := 0.U
 
+  io.SPI_DATA_VALID := SPI.io.DataValid;
 
   io.MOSI := SPI.io.MOSI
   io.CE := SPI.io.CE
   SPI.io.MISO := io.MISO
 
-  val idle :: read :: sampleData :: write :: Nil = Enum(4)
+  val idle :: read :: sampleData :: read_transmit :: write :: Nil = Enum(5)
   val StateReg = RegInit(idle)
+  io.SR := StateReg;
 
   val CntReg = RegInit(0.U(8.W))
+  io.CntReg := CntReg
 
   val WriteData = Reg(Vec(4,UInt(32.W)))
   val WriteByteEN = Reg(Vec(4, UInt(4.W)))
@@ -62,10 +56,12 @@ class OCPburst_SPI_memory extends Module {
   switch(StateReg) {
     is(idle) {
       switch(io.OCP_interface.M.Cmd) {
-        is(WR) {
+        is(OcpCmd.WR) {
+          CntReg := 0.U
           StateReg := sampleData
         }
-        is(RD) {
+        is(OcpCmd.RD) {
+          CntReg := 0.U
           StateReg := read
         }
       }
@@ -75,19 +71,28 @@ class OCPburst_SPI_memory extends Module {
       SPI.io.ReadEnable := true.B
       io.OCP_interface.S.CmdAccept := true.B;
 
-      when(SPI.io.DataValid) {
-        io.OCP_interface.S.Data := SPI.io.ReadData(CntReg)
-        CntReg := CntReg + 1.U
-        when(CntReg === 3.U) {
-          CntReg := 0.U
-          StateReg := idle
-        }
-        SPI.io.ReadEnable := false.B
-        io.OCP_interface.S.Resp := DVA
+      when(SPI.io.DataValid){
+        CntReg := 0.U
+        StateReg := read_transmit
+      }
+    }
+    is(read_transmit) {
+      io.OCP_interface.S.Data := SPI.io.ReadData(CntReg)
+      CntReg := CntReg + 1.U
+      SPI.io.ReadEnable := false.B
+      io.OCP_interface.S.Resp := OcpResp.DVA
+
+      when(CntReg === 3.U) {
+        CntReg := 0.U
+        StateReg := idle
       }
     }
     is(sampleData) {
-      io.OCP_interface.S.CmdAccept := true.B
+      when(CntReg === 0.U){
+        io.OCP_interface.S.CmdAccept := true.B
+      }.otherwise{
+        io.OCP_interface.S.CmdAccept := false.B
+      }
       io.OCP_interface.S.DataAccept := true.B
 
       when(io.OCP_interface.M.DataValid.toBool()) {
@@ -109,7 +114,7 @@ class OCPburst_SPI_memory extends Module {
       SPI.io.ByteEnable := (WriteByteEN(3) << 12).asUInt + (WriteByteEN(2) << 8).asUInt + (WriteByteEN(1) << 4).asUInt + WriteByteEN(0)
 
       when(SPI.io.WriteCompleted) {
-        io.OCP_interface.S.Resp := 1.U
+        io.OCP_interface.S.Resp := OcpResp.DVA;
         StateReg := idle
       }
     }
