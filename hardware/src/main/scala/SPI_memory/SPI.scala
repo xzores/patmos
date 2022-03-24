@@ -2,6 +2,7 @@ package SPI_memory
 
 import chisel3._
 import chisel3.util._
+import chisel3.experimental.Analog
 import SPI_CMDS._
 
 object SPI_CMDS {
@@ -11,7 +12,7 @@ object SPI_CMDS {
   val CMDSPIWrite = 2.U(8.W)
 }
 
-class SPI extends Module {
+class SPI(clockCount: Int) extends Module {
   val io = IO(new Bundle {
     val ReadEnable = Input(Bool())
     val WriteEnable = Input(Bool())
@@ -27,6 +28,7 @@ class SPI extends Module {
     //SPI pins
     val CE = Output(Bool())
     val MOSI = Output(Bool())
+    val SCK = Output(Bool())
     val MISO = Input(Bool())
   })
 
@@ -50,6 +52,14 @@ class SPI extends Module {
   val SubStateReg = RegInit(transmitCMD)
 
   val CntReg = RegInit(0.U(8.W))
+  
+  io.SCK := false.B
+  val ClockCntReg = RegInit(0.U(16.W))
+  ClockCntReg := ClockCntReg + 1.U
+  when(ClockCntReg === clockCount.asUInt) {
+    io.SCK := true.B
+    ClockCntReg := 0.U
+  }
 
   switch(StateReg) {
     is(resetEnable) {

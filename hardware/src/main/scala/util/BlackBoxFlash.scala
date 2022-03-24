@@ -9,8 +9,8 @@ class BlackBoxFlash extends BlackBox with HasBlackBoxResource {
   val io = IO(new Bundle{
     val SI = Analog(1.W)
     val SO = Analog(1.W)
-    val SCK = Input(UInt(1.W))
-    val CSNeg = Input(UInt(1.W))
+    val SCK = Input(Bool())
+    val CSNeg = Input(Bool())
     val WPNeg = Analog(1.W)
     val ResetNeg = Analog(1.W)
   })

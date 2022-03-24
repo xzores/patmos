@@ -1,6 +1,7 @@
 package SPI_memory
 
 import util.BlackBoxFlash
+import util.TriStateDriver
 import chisel3._
 import chisel3.util._
 import OcpCmd._
@@ -24,12 +25,7 @@ object OcpResp {
 
 class OCPburst_SPI_memory extends Module {
   val io = IO(new Bundle {
-
     val OCP_interface = new OcpBurstSlavePort(24, 32, 0); //TODO what is burstLen
-
-    val CE = Output(Bool())
-    val MOSI = Output(Bool())
-    val MISO = Input(Bool())
   })
 
   //Defaults
@@ -38,23 +34,14 @@ class OCPburst_SPI_memory extends Module {
   io.OCP_interface.S.DataAccept := false.B
   io.OCP_interface.S.Data := 0.U
 
-
-  val SPI = Module(new SPI)
+  val SPI = Module(new SPI(1))
   for(i <- 0 until 4){
     SPI.io.WriteData(i) := 0.U
   }
-
-  val flash = Module(new BlackBoxFlash)
-
   SPI.io.Address := 0.U
   SPI.io.ReadEnable := false.B
   SPI.io.WriteEnable := false.B
   SPI.io.ByteEnable := 0.U
-
-
-  io.MOSI := SPI.io.MOSI
-  io.CE := SPI.io.CE
-  SPI.io.MISO := io.MISO
 
   val idle :: read :: sampleData :: write :: Nil = Enum(4)
   val StateReg = RegInit(idle)
@@ -95,7 +82,7 @@ class OCPburst_SPI_memory extends Module {
       io.OCP_interface.S.CmdAccept := true.B
       io.OCP_interface.S.DataAccept := true.B
 
-      when(io.OCP_interface.M.DataValid.toBool()) {
+      when(io.OCP_interface.M.DataValid.asBool()) {
         WriteData(CntReg) := io.OCP_interface.M.Data;
         WriteByteEN(CntReg) := io.OCP_interface.M.DataByteEn
         CntReg := CntReg + 1.U
@@ -119,5 +106,9 @@ class OCPburst_SPI_memory extends Module {
       }
     }
   }
+}
+
+object MemoryInterface extends App {
+   (new chisel3.stage.ChiselStage).emitVerilog(new OCPburst_SPI_memory)
 }
 
