@@ -28,6 +28,8 @@ class SPI extends Module {
     val CE = Output(Bool())
     val MOSI = Output(Bool())
     val MISO = Input(Bool())
+    val CntReg = Output(UInt(8.W));
+    val PosReg = Output(UInt(4.W));
   })
 
   // Defaults
@@ -50,6 +52,18 @@ class SPI extends Module {
   val SubStateReg = RegInit(transmitCMD)
 
   val CntReg = RegInit(0.U(8.W))
+  io.CntReg := CntReg
+
+  /*
+  TempAddress is the starting address of the current burst.
+  When ByteEn of a specific byte is low,
+  this address will jump to the starting address of the next valid byte
+  */
+  val TempAddress = RegInit(0.U(24.W))
+
+  //PosReg is a pointer to the current byte in the byteEn integer being written to memory
+  val PosReg = RegInit(0.U(4.W))
+  io.PosReg := PosReg;
 
   switch(StateReg) {
     is(resetEnable) {
@@ -142,16 +156,6 @@ class SPI extends Module {
     }
     is(write) {
       SubStateReg := computeAddress
-
-      /* 
-      TempAddress is the starting address of the current burst. 
-      When ByteEn of a specific byte is low, 
-      this address will jump to the starting address of the next valid byte 
-      */
-      val TempAddress = RegInit(0.U(24.W))
-
-      //PosReg is a pointer to the current byte in the byteEn integer being written to memory
-      val PosReg = RegInit(0.U(4.W))
 
       switch(SubStateReg) {
         is(computeAddress) {

@@ -142,7 +142,7 @@ class OCPburst_SPI_memory_test extends AnyFlatSpec with ChiselScalatestTester
       master.Cmd.poke(OcpCmd.IDLE)
       master.Addr.poke(0.U)
       master.Data.poke(0.U)
-      master.DataByteEn.poke(0xFF.U) //it just cuts the bits?? maybe?
+      master.DataByteEn.poke(0x0.U) //it just cuts the bits?? maybe?
 
       dut.io.SR.expect(0.U);
 
@@ -176,10 +176,6 @@ class OCPburst_SPI_memory_test extends AnyFlatSpec with ChiselScalatestTester
       master.Data.poke(4321.U)
       master.DataByteEn.poke(0x00.U)
 
-      Software_Memory_Sim.step()
-      slave.DataAccept.expect(true.B)
-      slave.CmdAccept.expect(false.B)
-
       //////// next step /////////
 
       Software_Memory_Sim.step()
@@ -193,17 +189,25 @@ class OCPburst_SPI_memory_test extends AnyFlatSpec with ChiselScalatestTester
       master.Data.poke(123456.U)
       slave.DataAccept.expect(true.B)
       slave.CmdAccept.expect(false.B)
-      master.DataValid.poke(0.U)
 
       //////// next step /////////
 
       Software_Memory_Sim.step()
-      slave.DataAccept.expect(false.B)
-      slave.CmdAccept.expect(false.B)
-      slave.Resp.expect(OcpResp.DVA);
+      //slave.DataAccept.expect(false.B)
+      //slave.CmdAccept.expect(false.B)
+
+      master.Data.poke(0.U)
+      master.DataValid.poke(0.U)
+      master.DataValid.poke(0.U)
+
+      while(slave.Resp.peek().litValue() != OcpResp.DVA){
+        Software_Memory_Sim.step();
+      }
 
       Software_Memory_Sim.step()
       slave.Resp.expect(OcpResp.NULL);
+      //dut.SPI.io.
+
 
     }
   }

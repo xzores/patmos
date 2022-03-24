@@ -18,6 +18,9 @@ class OCPburst_SPI_memory extends Module {
     val SR = Output(UInt(4.W))
     val CntReg = Output(UInt(8.W))
     val SPI_DATA_VALID = Output(Bool());
+    val SPI_write_complete = Output(Bool());
+    val SPI_CntReg = Output(UInt(8.W))
+    val SPI_POS_REG = Output(UInt(4.W))
   })
 
   //Defaults
@@ -38,10 +41,15 @@ class OCPburst_SPI_memory extends Module {
   SPI.io.ByteEnable := 0.U
 
   io.SPI_DATA_VALID := SPI.io.DataValid;
+  io.SPI_write_complete := SPI.io.WriteCompleted;
+  io.SPI_CntReg := SPI.io.CntReg;
+  io.SPI_POS_REG := SPI.io.PosReg;
 
   io.MOSI := SPI.io.MOSI
   io.CE := SPI.io.CE
   SPI.io.MISO := io.MISO
+
+  io.OCP_interface.S.Resp := OcpResp.NULL;
 
   val idle :: read :: sampleData :: read_transmit :: write :: Nil = Enum(5)
   val StateReg = RegInit(idle)
