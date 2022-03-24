@@ -1,4 +1,4 @@
-package verilator.SPI_memory
+package SPI_memory
 
 import SPI_memory.OCPburst_SPI_memory
 import chisel3._
@@ -11,8 +11,8 @@ import chisel3.experimental.chiselName
 
 class Software_Memory_Sim(dut: OCPburst_SPI_memory) {
 
-  var in_bits : Array[Boolean] = new Array[Boolean](8);
-  var bits_read : Int = 0;
+  var in_bits : Array[Boolean] = new Array[Boolean](8)
+  var bits_read : Int = 0
 
   def step (n : Int = 1) : Unit = {
 
@@ -174,7 +174,7 @@ class OCPburst_SPI_memory_test extends AnyFlatSpec with ChiselScalatestTester
       master.Cmd.poke(OcpCmd.IDLE)
       master.Addr.poke(0.U)
       master.Data.poke(4321.U)
-      master.DataByteEn.poke(0x00.U) //it just cuts the bits?? maybe?
+      master.DataByteEn.poke(0x00.U)
 
       Software_Memory_Sim.step()
       slave.DataAccept.expect(true.B)
