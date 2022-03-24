@@ -28,6 +28,7 @@ class SPI extends Module {
     val CE = Output(Bool())
     val MOSI = Output(Bool())
     val MISO = Input(Bool())
+    //val StateReg = Output()
     val CntReg = Output(UInt(8.W));
     val PosReg = Output(UInt(4.W));
   })
@@ -64,6 +65,8 @@ class SPI extends Module {
   //PosReg is a pointer to the current byte in the byteEn integer being written to memory
   val PosReg = RegInit(0.U(4.W))
   io.PosReg := PosReg;
+
+  val Carry = Wire(Vec(17, Bool()))
 
   switch(StateReg) {
     is(resetEnable) {
@@ -159,7 +162,6 @@ class SPI extends Module {
 
       switch(SubStateReg) {
         is(computeAddress) {
-          val Carry = Wire(Vec(17, Bool()))
           for(i <- 0 until 17) {
             Carry(i) := false.B
           }
