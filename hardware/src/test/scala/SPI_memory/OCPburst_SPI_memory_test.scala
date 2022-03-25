@@ -21,6 +21,7 @@ class Software_Memory_Sim(dut: OCPburst_SPI_memory, fail_callback: () => Unit) {
   var bits_read : Int = 0
 
   var state = STATE.NULL;
+  var clock_cycle = 0;
 
   def bitsToByte(bits : Array[Boolean]) : Char = {
     var amount = 0;
@@ -69,7 +70,7 @@ class Software_Memory_Sim(dut: OCPburst_SPI_memory, fail_callback: () => Unit) {
 
     for( a <- 0 to n-1){
 
-      dut.clock.step();
+      println(Console.BLUE + "clock index " + clock_cycle + Console.RESET);
 
       if(dut.io.CE.peek().litValue() == 0){
         //We are ready to recive data
@@ -79,11 +80,21 @@ class Software_Memory_Sim(dut: OCPburst_SPI_memory, fail_callback: () => Unit) {
         if(bits_read >= 8){
           bits_read = 0;
           val in_val : Char = bitsToByte(in_bits);
-          println(Console.BLUE + "in_val was: ", in_val.toHexString)
+          println(Console.BLUE + "in_val was: " + in_val.toHexString + Console.RESET)
           handle_byte(in_val);
         }
       }
 
+      if(dut.io.CE.peek().litValue() == 1){
+        if(bits_read != 0){
+          println(Console.RED + "#CE must be hold high for the entire operation, minimum 8 bits at a time, was was pulled high "
+            + bits_read + " bits in" + Console.RESET);
+          fail_callback()
+        }
+      }
+
+      dut.clock.step();
+      clock_cycle = clock_cycle + 1;
 
     }
   };
@@ -99,6 +110,9 @@ class OCPburst_SPI_memory_test extends AnyFlatSpec with ChiselScalatestTester
 
       val Software_Memory_Sim = new Software_Memory_Sim(dut, fail);
 
+      Software_Memory_Sim.step(24); //A
+      ////////////////////////////////
+
       //////// clock cycle 1 /////////
       master.Cmd.poke(OcpCmd.IDLE)
       master.Addr.poke(0.U)
@@ -106,9 +120,6 @@ class OCPburst_SPI_memory_test extends AnyFlatSpec with ChiselScalatestTester
       master.DataByteEn.poke(0xFF.U) //it just cuts the bits?? maybe?
 
       dut.io.SR.expect(0.U);
-
-      Software_Memory_Sim.step(); //A
-      ////////////////////////////////
 
       //////// clock cycle 2 /////////
       master.Cmd.poke(OcpCmd.RD)
