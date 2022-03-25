@@ -67,6 +67,9 @@ class SPI extends Module {
   io.PosReg := PosReg;
 
   val Carry = Wire(Vec(17, Bool()))
+  for(i <- 0 until 17) {
+    Carry(i) := false.B
+  }
 
   switch(StateReg) {
     is(resetEnable) {
@@ -121,6 +124,7 @@ class SPI extends Module {
           io.CE := false.B
           io.MOSI := CMDSPIRead(7.U - CntReg)
           CntReg := CntReg + 1.U
+          SubStateReg := transmitCMD;
 
           when(CntReg === 7.U) {
             CntReg := 0.U
@@ -131,6 +135,7 @@ class SPI extends Module {
         is(transmitAddress) {
           io.MOSI := io.Address(24.U - CntReg)
           CntReg := CntReg + 1.U
+          SubStateReg := transmitAddress
 
           when(CntReg === 23.U) {
             CntReg := 0.U
@@ -162,14 +167,11 @@ class SPI extends Module {
 
       switch(SubStateReg) {
         is(computeAddress) {
-          for(i <- 0 until 17) {
-            Carry(i) := false.B
-          }
-
           /* 
           The following code looks through the WriteByteEN UInt to find the next valid byte, and 
           increments the address to that byte 
           */
+
           for(i <- 0 until 16) {
             when(i.U === 0.U && io.ByteEnable(i) && PosReg === 0.U){
               TempAddress := io.Address
@@ -187,12 +189,15 @@ class SPI extends Module {
               Carry(i + 1) := false.B
             }
           }
+
           SubStateReg := transmitCMD
         }
         is(transmitCMD) {
           io.CE := false.B
           io.MOSI := CMDSPIWrite(7.U - CntReg)
           CntReg := CntReg + 1.U
+          SubStateReg := transmitCMD
+
           when(CntReg === 7.U) {
             CntReg := 0.U
             SubStateReg := transmitAddress
@@ -202,6 +207,7 @@ class SPI extends Module {
           io.MOSI := TempAddress(23.U - CntReg)
 
           CntReg := CntReg + 1.U
+          SubStateReg := transmitAddress
 
           when(CntReg === 23.U){
             CntReg := 0.U
@@ -211,7 +217,8 @@ class SPI extends Module {
         is(transmitData) {
           io.MOSI := io.WriteData(CntReg(7,5))(31.U - CntReg(4,0))
           CntReg := CntReg + 1.U
-          
+          SubStateReg := transmitData
+
           when(CntReg === 7.U) {
             PosReg := PosReg + 1.U
             CntReg := 0.U

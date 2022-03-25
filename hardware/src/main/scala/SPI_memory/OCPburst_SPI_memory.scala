@@ -49,7 +49,8 @@ class OCPburst_SPI_memory extends Module {
   io.CE := SPI.io.CE
   SPI.io.MISO := io.MISO
 
-  io.OCP_interface.S.Resp := OcpResp.NULL;
+  val slave_resp = RegInit(OcpResp.NULL)
+  io.OCP_interface.S.Resp := slave_resp;
 
   val idle :: read :: sampleData :: read_transmit :: write :: Nil = Enum(5)
   val StateReg = RegInit(idle)
@@ -63,6 +64,7 @@ class OCPburst_SPI_memory extends Module {
 
   switch(StateReg) {
     is(idle) {
+      slave_resp := OcpResp.NULL;
       switch(io.OCP_interface.M.Cmd) {
         is(OcpCmd.WR) {
           CntReg := 0.U
@@ -122,10 +124,12 @@ class OCPburst_SPI_memory extends Module {
       SPI.io.ByteEnable := (WriteByteEN(3) << 12).asUInt + (WriteByteEN(2) << 8).asUInt + (WriteByteEN(1) << 4).asUInt + WriteByteEN(0)
 
       when(SPI.io.WriteCompleted) {
-        io.OCP_interface.S.Resp := OcpResp.DVA;
+        slave_resp := OcpResp.DVA;
         StateReg := idle
       }
     }
+
+
   }
 }
 

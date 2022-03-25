@@ -9,10 +9,61 @@ import org.scalatest.flatspec.AnyFlatSpec
 import treadle.WriteVcdAnnotation
 import chisel3.experimental.chiselName
 
-class Software_Memory_Sim(dut: OCPburst_SPI_memory) {
+object STATE extends Enumeration {
+  type STATE = Value
+  val NULL, RESET_ENABLE, RESET, READ, WRITE = Value
+
+}
+
+class Software_Memory_Sim(dut: OCPburst_SPI_memory, fail_callback: () => Unit) {
 
   var in_bits : Array[Boolean] = new Array[Boolean](8)
   var bits_read : Int = 0
+
+  var state = STATE.NULL;
+
+  def bitsToByte(bits : Array[Boolean]) : Char = {
+    var amount = 0;
+    for(i <- 1 until bits.length){
+      amount += (if(bits(i-1)) 1 else 0) * scala.math.pow(2,i).intValue()
+    }
+    return amount.toChar;
+  }
+
+  def handle_byte(b : Char): Unit = {
+
+    if (state == STATE.NULL || state == STATE.RESET_ENABLE){
+      if(b == 0x66)
+        state = STATE.RESET_ENABLE
+      else if(b == 0x99)
+        state = STATE.RESET
+      else {
+        println(Console.RED + "invalid byte was sent, state was: NULL/RESET_ENABLE, while bytes recived was " + b.toHexString + Console.RESET);
+        fail_callback()
+      };
+    }
+    else if(state == STATE.RESET){
+      if(b == 0xB5) //read state
+        state = STATE.READ
+      else if(b == 0xB1) //write state
+        state = STATE.WRITE
+      else if(b == 0x66)
+        state = STATE.RESET_ENABLE
+      else if(b == 0x99)
+        state = STATE.RESET
+      else {
+        println(Console.RED + "invalid byte was sent, state was: RESET, while bytes recived was " + b.toHexString + Console.RESET);
+        fail_callback()
+      };
+    }
+    if(state == STATE.READ){
+
+    }
+    if(state == STATE.WRITE){
+
+    }
+
+  }
 
   def step (n : Int = 1) : Unit = {
 
@@ -20,18 +71,19 @@ class Software_Memory_Sim(dut: OCPburst_SPI_memory) {
 
       dut.clock.step();
 
-      /*
       if(dut.io.CE.peek().litValue() == 0){
         //We are ready to recive data
-        val MOSI_val : Boolean= dut.io.MOSI.peek().litToBoolean;
+        val MOSI_val : Boolean = dut.io.MOSI.peek().litToBoolean;
         in_bits(bits_read) = MOSI_val;
         bits_read = bits_read + 1;
         if(bits_read >= 8){
           bits_read = 0;
+          val in_val : Char = bitsToByte(in_bits);
+          println(Console.BLUE + "in_val was: ", in_val.toHexString)
+          handle_byte(in_val);
         }
-        //convert_to_byte
       }
-      */
+
 
     }
   };
@@ -45,7 +97,7 @@ class OCPburst_SPI_memory_test extends AnyFlatSpec with ChiselScalatestTester
       val master = dut.io.OCP_interface.M
       val slave = dut.io.OCP_interface.S
 
-      val Software_Memory_Sim = new Software_Memory_Sim(dut);
+      val Software_Memory_Sim = new Software_Memory_Sim(dut, fail);
 
       //////// clock cycle 1 /////////
       master.Cmd.poke(OcpCmd.IDLE)
@@ -136,7 +188,7 @@ class OCPburst_SPI_memory_test extends AnyFlatSpec with ChiselScalatestTester
       val master = dut.io.OCP_interface.M
       val slave = dut.io.OCP_interface.S
 
-      val Software_Memory_Sim = new Software_Memory_Sim(dut);
+      val Software_Memory_Sim = new Software_Memory_Sim(dut, fail);
 
       //////// clock cycle 1 /////////
       master.Cmd.poke(OcpCmd.IDLE)
@@ -145,6 +197,10 @@ class OCPburst_SPI_memory_test extends AnyFlatSpec with ChiselScalatestTester
       master.DataByteEn.poke(0x0.U) //it just cuts the bits?? maybe?
 
       dut.io.SR.expect(0.U);
+
+      for( a <- 0 to 100){
+        Software_Memory_Sim.step();
+      };
 
       Software_Memory_Sim.step();
       ////////////////////////////////
@@ -174,7 +230,7 @@ class OCPburst_SPI_memory_test extends AnyFlatSpec with ChiselScalatestTester
       master.Cmd.poke(OcpCmd.IDLE)
       master.Addr.poke(0.U)
       master.Data.poke(4321.U)
-      master.DataByteEn.poke(0x00.U)
+      master.DataByteEn.poke(0xFF.U)
 
       //////// next step /////////
 
@@ -193,21 +249,19 @@ class OCPburst_SPI_memory_test extends AnyFlatSpec with ChiselScalatestTester
       //////// next step /////////
 
       Software_Memory_Sim.step()
+      master.DataByteEn.poke(0x00.U)
       //slave.DataAccept.expect(false.B)
       //slave.CmdAccept.expect(false.B)
 
       master.Data.poke(0.U)
       master.DataValid.poke(0.U)
-      master.DataValid.poke(0.U)
 
-      while(slave.Resp.peek().litValue() != OcpResp.DVA){
+      while(slave.Resp.peek().litValue() != OcpResp.DVA.litValue()){
         Software_Memory_Sim.step();
       }
 
       Software_Memory_Sim.step()
       slave.Resp.expect(OcpResp.NULL);
-      //dut.SPI.io.
-
 
     }
   }
