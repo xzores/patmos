@@ -46,7 +46,7 @@ class SPI extends Module {
 
   io.WriteCompleted := false.B
 
-  val resetEnable :: setReset :: idle :: read :: write :: Nil = Enum(5)
+  val resetEnable :: preReset :: setReset :: idle :: read :: write :: Nil = Enum(6)
   val StateReg = RegInit(resetEnable)
 
   val transmitCMD :: transmitAddress :: transmitData :: receiveData :: computeAddress :: Nil = Enum(5)
@@ -78,12 +78,22 @@ class SPI extends Module {
       CntReg := CntReg + 1.U
 
       when(CntReg === 7.U) {
-        io.CE := true.B
         CntReg := 0.U
         io.MOSI := 0.U
+        StateReg := preReset
+      }
+    }
+    is(preReset){
+      io.CE := true.B
+      io.MOSI := 0.U
+      CntReg := CntReg + 1.U
 
+      when(CntReg === 7.U) {
+        CntReg := 0.U
+        io.MOSI := 0.U
         StateReg := setReset
       }
+
     }
     is(setReset) {
       io.CE := false.B
@@ -91,7 +101,6 @@ class SPI extends Module {
       CntReg := CntReg + 1.U
 
       when(CntReg === 7.U) {
-        io.CE := true.B
         CntReg := 0.U
         io.MOSI := 0.U
 

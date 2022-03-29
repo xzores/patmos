@@ -70,31 +70,32 @@ class Software_Memory_Sim(dut: OCPburst_SPI_memory, fail_callback: () => Unit) {
 
     for( a <- 0 to n-1){
 
-      println(Console.BLUE + "clock index " + clock_cycle + Console.RESET);
+      dut.clock.step();
 
-      if(dut.io.CE.peek().litValue() == 0){
+      if(dut.io.CE.peek().litValue() == 0 && dut.reset.peek().litValue() == 0){
+
+        if(dut.io.CE.peek().litValue() == 1){
+          if(bits_read != 0){
+            println(Console.RED + "#CE must be hold high for the entire operation, minimum 8 bits at a time, was was pulled high "
+              + (bits_read + 1) + " bits in" + Console.RESET);
+            fail_callback()
+          }
+        }
+
+        println(Console.BLUE + "Chip clock index " + (clock_cycle + 1) + Console.RESET);
+        clock_cycle = clock_cycle + 1;
+
         //We are ready to recive data
         val MOSI_val : Boolean = dut.io.MOSI.peek().litToBoolean;
         in_bits(bits_read) = MOSI_val;
         bits_read = bits_read + 1;
-        if(bits_read >= 8){
+        if(bits_read >= 7){
           bits_read = 0;
           val in_val : Char = bitsToByte(in_bits);
           println(Console.BLUE + "in_val was: " + in_val.toHexString + Console.RESET)
           handle_byte(in_val);
         }
       }
-
-      if(dut.io.CE.peek().litValue() == 1){
-        if(bits_read != 0){
-          println(Console.RED + "#CE must be hold high for the entire operation, minimum 8 bits at a time, was was pulled high "
-            + bits_read + " bits in" + Console.RESET);
-          fail_callback()
-        }
-      }
-
-      dut.clock.step();
-      clock_cycle = clock_cycle + 1;
 
     }
   };
