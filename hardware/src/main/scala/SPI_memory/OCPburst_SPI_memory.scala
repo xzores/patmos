@@ -64,6 +64,10 @@ class OCPburst_SPI_memory extends Module {
   val WriteData = Reg(Vec(4,UInt(32.W)))
   val WriteByteEN = Reg(Vec(4, UInt(4.W)))
 
+
+  val address = RegInit(0.U(24.W))
+  address := 0.U;
+
   switch(StateReg) {
     is(idle) {
       slave_resp := OcpResp.NULL;
@@ -71,15 +75,18 @@ class OCPburst_SPI_memory extends Module {
         is(OcpCmd.WR) {
           CntReg := 0.U
           StateReg := sampleData
+          address := io.OCP_interface.M.Addr;
         }
         is(OcpCmd.RD) {
           CntReg := 0.U
           StateReg := read
+          address := io.OCP_interface.M.Addr;
         }
       }
     }
     is(read) {
-      SPI.io.Address := io.OCP_interface.M.Addr;
+      address := address;
+      SPI.io.Address := address;
       SPI.io.ReadEnable := true.B
       io.OCP_interface.S.CmdAccept := true.B;
 
@@ -119,8 +126,10 @@ class OCPburst_SPI_memory extends Module {
       }
     }
     is(write) {
-      SPI.io.Address := io.OCP_interface.M.Addr;
+      address := address;
+      SPI.io.Address := address;
       SPI.io.WriteEnable := true.B
+      StateReg := write
 
       SPI.io.WriteData := WriteData
       SPI.io.ByteEnable := (WriteByteEN(3) << 12).asUInt + (WriteByteEN(2) << 8).asUInt + (WriteByteEN(1) << 4).asUInt + WriteByteEN(0)

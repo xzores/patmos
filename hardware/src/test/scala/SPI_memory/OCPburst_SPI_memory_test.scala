@@ -19,15 +19,15 @@ class Memory_helper_functions{
 
   var last_clock = false
 
-  def bitsToByte(bits : Array[Boolean]) : Char = {
-    var amount = 0;
+  def bitsToInt(bits : Array[Boolean]) : Int = {
+    var amount : Int = 0;
     for(i <- bits){
       amount = amount << 1;
       if(i) {
         amount = amount + 1
       };
     }
-    return amount.toChar;
+    return amount;
   }
   def rising_edge(b : Boolean): Boolean ={
 
@@ -56,7 +56,16 @@ class Software_Memory_Sim(dut: OCPburst_SPI_memory, fail_callback: () => Unit) {
 
   var funcs : Memory_helper_functions = new Memory_helper_functions();
 
-  def handle_byte(b : Char): Unit = {
+  var address = 0;
+  var address_bytes_read = 0;
+
+  var data_bytes_read = 0;
+
+  def set_output(b : Byte): Unit ={
+
+  }
+
+  def handle_byte(b : Int): Unit = {
 
     if (state == STATE.NULL || state == STATE.RESET_ENABLE){
       if(b == 0x66)
@@ -82,10 +91,26 @@ class Software_Memory_Sim(dut: OCPburst_SPI_memory, fail_callback: () => Unit) {
         fail_callback()
       };
     }
-    if(state == STATE.READ){
-
+    else if(state == STATE.READ){
+      //println(Console.MAGENTA + "read state" + Console.RESET)
+      if(address_bytes_read < 3){
+        address = address << 8;
+        address = address + b;
+        println(Console.MAGENTA + "address: " + address + ", while bytes was: " + b + Console.RESET)
+        address_bytes_read += 1;
+      }
+      else{
+        //println(Console.MAGENTA + "address: " + address + Console.RESET)
+        if(data_bytes_read == 0){
+          //do nothing we are in wait cycle
+        }
+        else {
+          set_output(0);
+        }
+        data_bytes_read += 1;
+      }
     }
-    if(state == STATE.WRITE){
+    else if(state == STATE.WRITE){
 
     }
 
@@ -121,15 +146,22 @@ class Software_Memory_Sim(dut: OCPburst_SPI_memory, fail_callback: () => Unit) {
           bits_read = bits_read + 1;
           if(bits_read >= 8){
             bits_read = 0;
-            val in_val : Char = funcs.bitsToByte(in_bits);
+            val in_val = funcs.bitsToInt(in_bits);
             println(Console.BLUE + "in_val was: 0x" + in_val.toHexString + Console.RESET)
             handle_byte(in_val);
           }
         }
+        else{
+          address = 0;
+          address_bytes_read = 0;
+          data_bytes_read = 0;
+        }
+
       }
 
     }
   };
+
 }
 
 class OCP_master_commands(master : OcpBurstMasterSignals, slave : OcpBurstSlaveSignals, step: (Int) => Unit, fail_callback: () => Unit) {
@@ -209,7 +241,7 @@ class OCP_master_commands(master : OcpBurstMasterSignals, slave : OcpBurstSlaveS
     return values
   }
 
-  def write_command(address : Int, data : Array[BigInt], byte_en : Array[Array[Boolean]]): Unit ={
+  def write_command(address : Int, data : Array[BigInt], byte_en : Array[Int]): Unit ={
 
     master.Cmd.poke(OcpCmd.IDLE)
     master.Addr.poke(0.U)
@@ -223,7 +255,7 @@ class OCP_master_commands(master : OcpBurstMasterSignals, slave : OcpBurstSlaveS
     master.Cmd.poke(OcpCmd.WR)
     master.Addr.poke(address.U)
     master.Data.poke(data(0).U)
-    master.DataByteEn.poke(0xF.U); //TODO use byte_en
+    master.DataByteEn.poke(byte_en(0).U);
     master.DataValid.poke(1.U)
     slave.Resp.expect(OcpResp.NULL)
     master.DataValid.poke(true.B);
@@ -240,7 +272,7 @@ class OCP_master_commands(master : OcpBurstMasterSignals, slave : OcpBurstSlaveS
     master.Addr.poke(0.U)
     master.Data.poke(data(1).U)
     master.DataValid.poke(true.B);
-    master.DataByteEn.poke(0xF.U) //TODO use byte_en
+    master.DataByteEn.poke(byte_en(1).U)
     write_step()
 
     slave.Resp.expect(OcpResp.NULL)
@@ -249,7 +281,7 @@ class OCP_master_commands(master : OcpBurstMasterSignals, slave : OcpBurstSlaveS
     master.Addr.poke(0.U)
     master.Data.poke(data(2).U)
     master.DataValid.poke(true.B);
-    master.DataByteEn.poke(0xF.U) //TODO use byte_en
+    master.DataByteEn.poke(byte_en(2).U)
     write_step()
 
     slave.Resp.expect(OcpResp.NULL)
@@ -258,8 +290,12 @@ class OCP_master_commands(master : OcpBurstMasterSignals, slave : OcpBurstSlaveS
     master.Addr.poke(0.U)
     master.Data.poke(data(3).U)
     master.DataValid.poke(true.B);
-    master.DataByteEn.poke(0xF.U) //TODO use byte_en
+    master.DataByteEn.poke(byte_en(3).U)
     write_step()
+
+    while(slave.Resp.peek().litValue() != OcpResp.DVA.litValue()){
+      write_step()
+    }
 
     slave.Resp.expect(OcpResp.DVA)
     slave.DataAccept.expect(false.B)
@@ -279,6 +315,9 @@ class OCP_master_commands(master : OcpBurstMasterSignals, slave : OcpBurstSlaveS
     master.DataByteEn.poke(0x0.U)
     write_step()
 
+    slave.Resp.expect(OcpResp.NULL)
+    slave.DataAccept.expect(false.B)
+
   }
 }
 
@@ -287,18 +326,19 @@ class OCPburst_SPI_memory_test extends AnyFlatSpec with ChiselScalatestTester
   "Read OCP test software" should "pass" in {
     test(new OCPburst_SPI_memory()).withAnnotations(Seq(WriteVcdAnnotation)) { dut =>
 
-      dut.clock.setTimeout(20000);
+      dut.clock.setTimeout(100000);
 
       val Software_Memory_Sim = new Software_Memory_Sim(dut, fail);
-      Software_Memory_Sim.step(100);
 
       val master = dut.io.OCP_interface.M
       val slave = dut.io.OCP_interface.S
 
       val ocp_tester = new OCP_master_commands(master, slave, Software_Memory_Sim.step, fail);
-      ocp_tester.read_command(13512);
+      Software_Memory_Sim.step(1000);
+
+      ocp_tester.read_command(0x0000FF);
       Software_Memory_Sim.step(10);
-      ocp_tester.read_command(1342);
+      ocp_tester.read_command(0x00000F);
       Software_Memory_Sim.step(100);
       ocp_tester.read_command(23456);
       ocp_tester.read_command(54321);
@@ -313,13 +353,16 @@ class OCPburst_SPI_memory_test extends AnyFlatSpec with ChiselScalatestTester
       dut.clock.setTimeout(10000);
 
       val Software_Memory_Sim = new Software_Memory_Sim(dut, fail);
-      Software_Memory_Sim.step(100);
 
       val master = dut.io.OCP_interface.M
       val slave = dut.io.OCP_interface.S
 
       val ocp_tester = new OCP_master_commands(master, slave, Software_Memory_Sim.step, fail);
-      ocp_tester.write_command(141, Array(14, 1245, 114, 124), Array(Array()));
+      Software_Memory_Sim.step(1000);
+
+      ocp_tester.write_command(141, Array(14, 1245, 114, 124), Array(0xF, 0xF, 0xF, 0xF));
+      ocp_tester.write_command(115161, Array(43451, 1355, 12355, 12512), Array(0xF, 0x0, 0x0, 0xF));
+      ocp_tester.write_command(0, Array(1, 2, 3, 4), Array(0x0, 0xF, 0xF, 0x0));
 
     }
   }
