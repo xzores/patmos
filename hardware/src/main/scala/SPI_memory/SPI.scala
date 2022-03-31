@@ -156,6 +156,7 @@ class SPI(Count: Int) extends Module {
       ClockEn := true.B
       StateReg := resetEnable
       io.MOSI := CMDResetEnable(7.U - CntReg)
+      CntReg := CntReg;
 
       when(NextStateInv){
         CntReg := CntReg + 1.U
@@ -182,7 +183,7 @@ class SPI(Count: Int) extends Module {
       io.CE := false.B
       ClockEn := true.B
       StateReg := setReset
-
+      CntReg := CntReg;
       io.MOSI := CMDReset(7.U - CntReg)
 
       when(NextStateInv){
@@ -220,6 +221,7 @@ class SPI(Count: Int) extends Module {
         is(transmitCMD) {
           io.CE := false.B
           ClockEn := true.B
+          CntReg := CntReg;
 
           io.MOSI := CMDSPIRead(7.U - CntReg)
           SubStateReg := transmitCMD
@@ -237,6 +239,7 @@ class SPI(Count: Int) extends Module {
         is(transmitAddress) {
           io.CE := false.B
           ClockEn := true.B
+          CntReg := CntReg;
 
           io.MOSI := io.Address(24.U - CntReg)
           SubStateReg := transmitAddress
@@ -254,6 +257,7 @@ class SPI(Count: Int) extends Module {
           io.CE := false.B
           ClockEn := true.B
           SubStateReg := receiveData
+          CntReg := CntReg;
           // Reads on the rising edge of SCLK
 
           when(RisingEdge){
@@ -314,6 +318,7 @@ class SPI(Count: Int) extends Module {
         is(transmitCMD) {
           io.CE := false.B
           ClockEn := true.B
+          CntReg := CntReg;
 
           io.MOSI := CMDSPIWrite(7.U - CntReg)
           SubStateReg := transmitCMD
@@ -330,6 +335,7 @@ class SPI(Count: Int) extends Module {
         is(transmitAddress) {
           io.CE := false.B
           ClockEn := true.B
+          CntReg := CntReg;
 
           io.MOSI := TempAddress(23.U - CntReg)
           SubStateReg := transmitAddress
@@ -346,6 +352,7 @@ class SPI(Count: Int) extends Module {
         is(transmitData) {
           io.CE := false.B
           ClockEn := true.B
+          CntReg := CntReg;
 
           io.MOSI := io.WriteData((PosReg >> 2).asUInt)(31.U - Cat(PosReg(1,0),CntReg(2,0)).asUInt)
           SubStateReg := transmitData

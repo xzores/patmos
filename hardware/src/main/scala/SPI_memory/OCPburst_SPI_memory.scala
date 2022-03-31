@@ -31,7 +31,7 @@ class OCPburst_SPI_memory extends Module {
   io.OCP_interface.S.Data := 0.U
 
 
-  val SPI = Module(new SPI(4))
+  val SPI = Module(new SPI(2))
   for(i <- 0 until 4){
     SPI.io.WriteData(i) := 0.U
   }

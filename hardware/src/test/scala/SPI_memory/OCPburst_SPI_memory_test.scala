@@ -27,8 +27,12 @@ class Software_Memory_Sim(dut: OCPburst_SPI_memory, fail_callback: () => Unit) {
 
   def bitsToByte(bits : Array[Boolean]) : Char = {
     var amount = 0;
-    for(i <- 1 until bits.length){
-      amount += (if(bits(i-1)) 1 else 0) * scala.math.pow(2,i).intValue()
+    for(i <- bits){
+
+      amount = amount << 1;
+      if(i) {
+        amount = amount + 1
+      };
     }
     return amount.toChar;
   }
@@ -46,9 +50,9 @@ class Software_Memory_Sim(dut: OCPburst_SPI_memory, fail_callback: () => Unit) {
       };
     }
     else if(state == STATE.RESET){
-      if(b == 0xB5) //read state
+      if(b == 0x03) //read state
         state = STATE.READ
-      else if(b == 0xB1) //write state
+      else if(b == 0x02) //write state
         state = STATE.WRITE
       else if(b == 0x66)
         state = STATE.RESET_ENABLE
@@ -85,37 +89,39 @@ class Software_Memory_Sim(dut: OCPburst_SPI_memory, fail_callback: () => Unit) {
 
   def step (n : Int = 1) : Unit = {
 
+
     for( a <- 0 to n-1){
 
-      while(rising_edge(dut.io.S_CLK.peek().litToBoolean) == false){
-        println("S_CLK: " + dut.io.S_CLK.peek().litToBoolean)
-        dut.clock.step();
-      };
+      dut.clock.step();
 
-      if(dut.io.CE.peek().litValue() == 0 && dut.reset.peek().litValue() == 0){
+      if(rising_edge(dut.io.S_CLK.peek().litToBoolean)){
 
-        if(dut.io.CE.peek().litValue() == 1){
-          if(bits_read != 0){
-            println(Console.RED + "#CE must be hold high for the entire operation, minimum 8 bits at a time, was was pulled high "
-              + (bits_read + 1) + " bits in" + Console.RESET);
-            fail_callback()
+        if(dut.io.CE.peek().litValue() == 0 && dut.reset.peek().litValue() == 0){
+          dut.io.CE.expect(false.B);
+
+          if(dut.io.CE.peek().litValue() == 1){
+            if(bits_read != 0){
+              println(Console.RED + "#CE must be hold high for the entire operation, minimum 8 bits at a time, was was pulled high "
+                + (bits_read + 1) + " bits in" + Console.RESET);
+              fail_callback()
+            }
+          }
+
+          //We are ready to recive data
+          val MOSI_val : Boolean = dut.io.MOSI.peek().litToBoolean;
+
+          //println(Console.BLUE + "Chip clock index " + (clock_cycle + 1) + ", MOSI was: " + MOSI_val + Console.RESET);
+          clock_cycle = clock_cycle + 1;
+
+          in_bits(bits_read) = MOSI_val;
+          bits_read = bits_read + 1;
+          if(bits_read >= 8){
+            bits_read = 0;
+            val in_val : Char = bitsToByte(in_bits);
+            println(Console.BLUE + "in_val was: 0x" + in_val.toHexString + Console.RESET)
+            handle_byte(in_val);
           }
         }
-
-        //We are ready to recive data
-        val MOSI_val : Boolean = dut.io.MOSI.peek().litToBoolean;
-
-        println(Console.BLUE + "Chip clock index " + (clock_cycle + 1) + ", MOSI was: " + MOSI_val + Console.RESET);
-        clock_cycle = clock_cycle + 1;
-
-        in_bits(bits_read) = MOSI_val;
-        if(bits_read >= 7){
-          bits_read = 0;
-          val in_val : Char = bitsToByte(in_bits);
-          println(Console.BLUE + "in_val was: 0x" + in_val.toHexString + Console.RESET)
-          handle_byte(in_val);
-        }
-        bits_read = bits_read + 1;
       }
 
     }
@@ -127,15 +133,17 @@ class OCPburst_SPI_memory_test extends AnyFlatSpec with ChiselScalatestTester
   "Read OCP test software" should "pass" in {
     test(new OCPburst_SPI_memory()).withAnnotations(Seq(WriteVcdAnnotation)) { dut =>
 
+      dut.clock.setTimeout(10000);
+
       val master = dut.io.OCP_interface.M
       val slave = dut.io.OCP_interface.S
 
       val Software_Memory_Sim = new Software_Memory_Sim(dut, fail);
-      dut.clock.step();
+      Software_Memory_Sim.step(100);
 
       //////// clock cycle 1 /////////
       master.Cmd.poke(OcpCmd.IDLE)
-      master.Addr.poke(0.U)
+      master.Addr.poke(123.U)
       master.Data.poke(0.U)
       master.DataByteEn.poke(0xFF.U) //it just cuts the bits?? maybe?
 
@@ -143,38 +151,34 @@ class OCPburst_SPI_memory_test extends AnyFlatSpec with ChiselScalatestTester
 
       //////// clock cycle 2 /////////
       master.Cmd.poke(OcpCmd.RD)
-      master.Addr.poke(0.U)
+      master.Addr.poke(123.U)
       master.Data.poke(0.U)
       master.DataByteEn.poke(0xFF.U) //it just cuts the bits?? maybe?
 
       slave.Resp.expect(0.U);
       dut.io.SR.expect(0.U);
 
-      dut.clock.step();
+      Software_Memory_Sim.step();
 
       slave.CmdAccept.expect(true.B);
       slave.Resp.expect(OcpResp.NULL);
       dut.io.SR.expect(1.U);
       ///////////////////////////////////////////////
 
-
       master.Cmd.poke(OcpCmd.IDLE)
-      master.Addr.poke(0.U)
+      master.Addr.poke(123.U)
       master.Data.poke(0.U)
       master.DataByteEn.poke(0xFF.U) //it just cuts the bits?? maybe?
       dut.io.CntReg.expect(0.U);
 
       var count = 0;
-      val max_count = 10000;
+      val max_count = 5000;
       while(slave.Resp.peek().litValue() != OcpResp.DVA.litValue() && count < max_count) {
-        //dut.io.SR.expect(1.U);
-        //dut.io.SPI_DATA_VALUD.expect(false.B);
-
         count = count + 1;
 
         if(slave.Resp.peek().litValue() == OcpResp.NULL.litValue()){
           Software_Memory_Sim.step();
-          //println("stepped, while waiting for data ready")
+          println("stepped, while waiting for data ready")
 
         }
         else if(slave.Resp.peek().litValue() == OcpResp.ERR.litValue()) {
@@ -191,32 +195,32 @@ class OCPburst_SPI_memory_test extends AnyFlatSpec with ChiselScalatestTester
           fail()
         }
       };
-
       if(count >= max_count-1) {
         println(Console.RED + "Too many steps, we stepped for " + (count) + " clocks" + Console.RESET)
         fail();
       };
 
+
       dut.io.CntReg.expect(0.U)
       dut.io.SR.expect(3.U)
       slave.Resp.expect(OcpResp.DVA) //2
 
-      Software_Memory_Sim.step()
+      dut.clock.step();
       dut.io.SR.expect(3.U)
       dut.io.CntReg.expect(1.U)
       slave.Resp.expect(OcpResp.DVA) //3
 
-      Software_Memory_Sim.step()
+      dut.clock.step();
       dut.io.CntReg.expect(2.U)
       dut.io.SR.expect(3.U)
       slave.Resp.expect(OcpResp.DVA) //4
 
-      Software_Memory_Sim.step()
+      dut.clock.step();
       dut.io.CntReg.expect(3.U)
       dut.io.SR.expect(3.U)
       slave.Resp.expect(OcpResp.DVA) //4
 
-      Software_Memory_Sim.step()
+      dut.clock.step();
       slave.Resp.expect(OcpResp.NULL) //5
 
       //  println("Result is: " + dut.io.out.peek().toString)
