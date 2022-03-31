@@ -27,6 +27,11 @@ class Memory_helper_functions{
         amount = amount + 1
       };
     }
+
+    if(amount > 256){
+      println(Console.RED + "ERROR, byte is over 256!!" + Console.RESET)
+    }
+
     return amount;
   }
   def rising_edge(b : Boolean): Boolean ={
@@ -46,7 +51,7 @@ class Memory_helper_functions{
 
 }
 
-class Software_Memory_Sim(dut: OCPburst_SPI_memory, fail_callback: () => Unit) {
+class Software_Memory_Sim(m : Module, io : SPI_memory_port, fail_callback: () => Unit) {
 
   var in_bits : Array[Boolean] = new Array[Boolean](8)
   var bits_read : Int = 0
@@ -93,22 +98,21 @@ class Software_Memory_Sim(dut: OCPburst_SPI_memory, fail_callback: () => Unit) {
     }
     else if(state == STATE.READ){
       //println(Console.MAGENTA + "read state" + Console.RESET)
+
       if(address_bytes_read < 3){
         address = address << 8;
         address = address + b;
-        println(Console.MAGENTA + "address: " + address + ", while bytes was: " + b + Console.RESET)
+        println(Console.MAGENTA + "address: " + address.toHexString + ", while bytes was: " + b.toHexString + Console.RESET)
         address_bytes_read += 1;
       }
       else{
         //println(Console.MAGENTA + "address: " + address + Console.RESET)
-        if(data_bytes_read == 0){
-          //do nothing we are in wait cycle
-        }
-        else {
-          set_output(0);
-        }
+        set_output(0); //TODO real output
         data_bytes_read += 1;
       }
+
+      if(address > scala.math.pow(2,8*address_bytes_read))
+        println(Console.RED + "address is over 24 bits!?!?! " + Console.RESET)
     }
     else if(state == STATE.WRITE){
 
@@ -121,14 +125,14 @@ class Software_Memory_Sim(dut: OCPburst_SPI_memory, fail_callback: () => Unit) {
 
     for( a <- 0 to n-1){
 
-      dut.clock.step();
+      m.clock.step();
 
-      if(funcs.rising_edge(dut.io.S_CLK.peek().litToBoolean)){
+      if(funcs.rising_edge(io.S_CLK.peek().litToBoolean)){
 
-        if(dut.io.CE.peek().litValue() == 0 && dut.reset.peek().litValue() == 0){
-          dut.io.CE.expect(false.B);
+        if(io.CE.peek().litValue() == 0 && m.reset.peek().litValue() == 0){
+          io.CE.expect(false.B);
 
-          if(dut.io.CE.peek().litValue() == 1){
+          if(io.CE.peek().litValue() == 1){
             if(bits_read != 0){
               println(Console.RED + "#CE must be hold high for the entire operation, minimum 8 bits at a time, was was pulled high "
                 + (bits_read + 1) + " bits in" + Console.RESET);
@@ -137,7 +141,7 @@ class Software_Memory_Sim(dut: OCPburst_SPI_memory, fail_callback: () => Unit) {
           }
 
           //We are ready to recive data
-          val MOSI_val : Boolean = dut.io.MOSI.peek().litToBoolean;
+          val MOSI_val : Boolean = io.MOSI.peek().litToBoolean;
 
           //println(Console.BLUE + "Chip clock index " + (clock_cycle + 1) + ", MOSI was: " + MOSI_val + Console.RESET);
           clock_cycle = clock_cycle + 1;
@@ -151,14 +155,15 @@ class Software_Memory_Sim(dut: OCPburst_SPI_memory, fail_callback: () => Unit) {
             handle_byte(in_val);
           }
         }
-        else{
+
+        if(io.CE.peek().litValue() == 1){
           address = 0;
           address_bytes_read = 0;
           data_bytes_read = 0;
         }
 
-      }
 
+      }
     }
   };
 
@@ -323,12 +328,47 @@ class OCP_master_commands(master : OcpBurstMasterSignals, slave : OcpBurstSlaveS
 
 class OCPburst_SPI_memory_test extends AnyFlatSpec with ChiselScalatestTester
 {
+  "SPI test 1 software" should "pass" in {
+    test(new SPI(2)).withAnnotations(Seq(WriteVcdAnnotation)) { dut =>
+
+      val Software_Memory_Sim = new Software_Memory_Sim(dut, dut.io, fail);
+
+      dut.clock.setTimeout(10000);
+      Software_Memory_Sim.step(200);//wait for startup
+      dut.io.CE.expect(true.B)
+
+      Software_Memory_Sim.step();
+      dut.io.Address.poke(0x0F0F0F.U);
+      dut.io.ReadEnable.poke(true.B);
+      Software_Memory_Sim.step();
+      dut.io.ReadEnable.poke(false.B);
+
+      while(dut.io.DataValid.peek().litToBoolean == false){
+        Software_Memory_Sim.step();
+      }
+
+      Software_Memory_Sim.step(100);
+
+      dut.io.Address.poke(0x0F0F0F.U);
+      dut.io.ReadEnable.poke(true.B);
+      Software_Memory_Sim.step();
+      dut.io.ReadEnable.poke(false.B);
+
+      while(dut.io.DataValid.peek().litToBoolean == false){
+        Software_Memory_Sim.step();
+      }
+
+      Software_Memory_Sim.step(20);
+
+    }
+  }
+
   "Read OCP test software" should "pass" in {
     test(new OCPburst_SPI_memory()).withAnnotations(Seq(WriteVcdAnnotation)) { dut =>
 
-      dut.clock.setTimeout(100000);
+      dut.clock.setTimeout(10000);
 
-      val Software_Memory_Sim = new Software_Memory_Sim(dut, fail);
+      val Software_Memory_Sim = new Software_Memory_Sim(dut, dut.SPI.io, fail);
 
       val master = dut.io.OCP_interface.M
       val slave = dut.io.OCP_interface.S
@@ -338,15 +378,15 @@ class OCPburst_SPI_memory_test extends AnyFlatSpec with ChiselScalatestTester
 
       ocp_tester.read_command(0x0000FF);
       Software_Memory_Sim.step(10);
-      ocp_tester.read_command(0x00000F);
-      Software_Memory_Sim.step(100);
-      ocp_tester.read_command(23456);
-      ocp_tester.read_command(54321);
-      ocp_tester.read_command(23456);
+      ocp_tester.read_command(0x0F0F0F);
+      //Software_Memory_Sim.step(100);
+      //ocp_tester.read_command(23456);
+      //ocp_tester.read_command(54321);
+      //ocp_tester.read_command(23456);
 
     }
   }
-
+/*
   "Write OCP test software" should "pass" in {
     test(new OCPburst_SPI_memory()).withAnnotations(Seq(WriteVcdAnnotation)) { dut =>
 
@@ -373,7 +413,7 @@ class OCPburst_SPI_memory_test extends AnyFlatSpec with ChiselScalatestTester
 
     }
   }
-
+*/
 
 }
 

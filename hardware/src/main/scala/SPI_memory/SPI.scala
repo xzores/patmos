@@ -4,36 +4,38 @@ import chisel3._
 import chisel3.util._
 import SPI_CMDS._
 
-object SPI_CMDS {
+object SPI_CMDS{
   val CMDResetEnable = 102.U(8.W)
   val CMDReset = 153.U(8.W)
   val CMDSPIRead = 3.U(8.W)
   val CMDSPIWrite = 2.U(8.W)
 }
 
+class SPI_memory_port() extends Bundle() {
+  val ReadEnable = Input(Bool())
+  val WriteEnable = Input(Bool())
+  val Address = Input(UInt(24.W))
+  val WriteData = Input(Vec(4,UInt(32.W)))
+  val ByteEnable = Input(UInt(16.W))
+
+  val ReadData = Output(Vec(4, UInt(32.W)))
+
+  val DataValid = Output(Bool())
+  val WriteCompleted = Output(Bool())
+  val Completed = Output(Bool())
+
+  //SPI pins
+  val CE = Output(Bool())
+  val MOSI = Output(Bool())
+  val MISO = Input(Bool())
+  val S_CLK = Output(Bool())
+  //val StateReg = Output()
+  //val CntReg = Output(UInt(8.W));
+  //val PosReg = Output(UInt(4.W));
+}
+
 class SPI(Count: Int) extends Module {
-  val io = IO(new Bundle {
-    val ReadEnable = Input(Bool())
-    val WriteEnable = Input(Bool())
-    val Address = Input(UInt(24.W))
-    val WriteData = Input(Vec(4,UInt(32.W)))
-    val ByteEnable = Input(UInt(16.W))
-
-    val ReadData = Output(Vec(4, UInt(32.W)))
-
-    val DataValid = Output(Bool())
-    val WriteCompleted = Output(Bool())
-    val Completed = Output(Bool())
-
-    //SPI pins
-    val CE = Output(Bool())
-    val MOSI = Output(Bool())
-    val MISO = Input(Bool())
-    val S_CLK = Output(Bool())
-    //val StateReg = Output()
-    //val CntReg = Output(UInt(8.W));
-    //val PosReg = Output(UInt(4.W));
-  })
+  val io = IO(new SPI_memory_port())
 
   // Defaults
 
@@ -246,6 +248,7 @@ class SPI(Count: Int) extends Module {
           }
 
           when(CntReg === 23.U && NextStateInv) {
+            io.MOSI := io.Address(0.U)
             CntReg := 0.U
             SubStateReg := receiveData
           }
@@ -323,6 +326,7 @@ class SPI(Count: Int) extends Module {
           }
 
           when(CntReg === 7.U && NextStateInv) {
+            io.MOSI := CMDSPIWrite(0.U)
             CntReg := 0.U
             SubStateReg := transmitAddress
           }
@@ -339,6 +343,7 @@ class SPI(Count: Int) extends Module {
           }
 
           when(CntReg === 23.U && NextStateInv){
+            io.MOSI := TempAddress(0.U)
             CntReg := 0.U
             SubStateReg := transmitData
           }
