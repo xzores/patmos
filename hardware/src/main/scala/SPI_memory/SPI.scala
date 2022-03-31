@@ -46,8 +46,8 @@ class SPI extends Module {
 
   io.WriteCompleted := false.B
 
-  val resetEnable :: preReset :: setReset :: idle :: read :: write :: Nil = Enum(6)
-  val StateReg = RegInit(resetEnable)
+  val waitState :: resetEnable :: preReset :: setReset :: idle :: read :: write :: Nil = Enum(7)
+  val StateReg = RegInit(waitState)
 
   val transmitCMD :: transmitAddress :: transmitData :: receiveData :: computeAddress :: Nil = Enum(5)
   val SubStateReg = RegInit(transmitCMD)
@@ -72,6 +72,18 @@ class SPI extends Module {
   }
 
   switch(StateReg) {
+    is(waitState) {
+      io.MOSI := 0.U
+      io.CE := true.B
+      CntReg := CntReg + 1.U;
+
+      when(CntReg === 7.U) {
+        CntReg := 0.U
+        io.CE := false.B
+        StateReg := resetEnable
+      }
+
+    }
     is(resetEnable) {
       io.CE := false.B
       io.MOSI := CMDResetEnable(7.U - CntReg)
@@ -142,6 +154,7 @@ class SPI extends Module {
         }
 
         is(transmitAddress) {
+          io.CE := false.B
           io.MOSI := io.Address(24.U - CntReg)
           CntReg := CntReg + 1.U
           SubStateReg := transmitAddress
@@ -153,6 +166,7 @@ class SPI extends Module {
         }
 
         is(receiveData) {
+          io.CE := false.B
           // Buffer for the read data
           val DataReg = RegInit(0.U(128.W))
           DataReg := Cat(DataReg, io.MISO.asUInt)
@@ -172,6 +186,7 @@ class SPI extends Module {
       }
     }
     is(write) {
+      io.CE := false.B
       SubStateReg := computeAddress
 
       switch(SubStateReg) {

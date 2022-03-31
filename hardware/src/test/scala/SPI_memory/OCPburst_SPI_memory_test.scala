@@ -39,7 +39,7 @@ class Software_Memory_Sim(dut: OCPburst_SPI_memory, fail_callback: () => Unit) {
       else if(b == 0x99)
         state = STATE.RESET
       else {
-        println(Console.RED + "invalid byte was sent, state was: NULL/RESET_ENABLE, while bytes recived was " + b.toHexString + Console.RESET);
+        println(Console.RED + "invalid byte was sent, state was: NULL/RESET_ENABLE, while bytes recived was 0x" + b.toHexString + Console.RESET);
         fail_callback()
       };
     }
@@ -53,7 +53,7 @@ class Software_Memory_Sim(dut: OCPburst_SPI_memory, fail_callback: () => Unit) {
       else if(b == 0x99)
         state = STATE.RESET
       else {
-        println(Console.RED + "invalid byte was sent, state was: RESET, while bytes recived was " + b.toHexString + Console.RESET);
+        println(Console.RED + "invalid byte was sent, state was: RESET, while bytes recived was 0x" + b.toHexString + Console.RESET);
         fail_callback()
       };
     }
@@ -70,8 +70,6 @@ class Software_Memory_Sim(dut: OCPburst_SPI_memory, fail_callback: () => Unit) {
 
     for( a <- 0 to n-1){
 
-      dut.clock.step();
-
       if(dut.io.CE.peek().litValue() == 0 && dut.reset.peek().litValue() == 0){
 
         if(dut.io.CE.peek().litValue() == 1){
@@ -82,20 +80,24 @@ class Software_Memory_Sim(dut: OCPburst_SPI_memory, fail_callback: () => Unit) {
           }
         }
 
-        println(Console.BLUE + "Chip clock index " + (clock_cycle + 1) + Console.RESET);
-        clock_cycle = clock_cycle + 1;
-
         //We are ready to recive data
         val MOSI_val : Boolean = dut.io.MOSI.peek().litToBoolean;
+
+        println(Console.BLUE + "Chip clock index " + (clock_cycle + 1) + ", MOSI was: " + MOSI_val + Console.RESET);
+        clock_cycle = clock_cycle + 1;
+
         in_bits(bits_read) = MOSI_val;
-        bits_read = bits_read + 1;
         if(bits_read >= 7){
           bits_read = 0;
           val in_val : Char = bitsToByte(in_bits);
-          println(Console.BLUE + "in_val was: " + in_val.toHexString + Console.RESET)
+          println(Console.BLUE + "in_val was: 0x" + in_val.toHexString + Console.RESET)
           handle_byte(in_val);
         }
+        bits_read = bits_read + 1;
       }
+
+      dut.clock.step();
+
 
     }
   };
@@ -110,8 +112,9 @@ class OCPburst_SPI_memory_test extends AnyFlatSpec with ChiselScalatestTester
       val slave = dut.io.OCP_interface.S
 
       val Software_Memory_Sim = new Software_Memory_Sim(dut, fail);
+      dut.clock.step();
 
-      Software_Memory_Sim.step(24); //A
+      Software_Memory_Sim.step(24); //
       ////////////////////////////////
 
       //////// clock cycle 1 /////////
