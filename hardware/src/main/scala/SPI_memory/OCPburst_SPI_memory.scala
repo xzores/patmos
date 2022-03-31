@@ -13,6 +13,7 @@ class OCPburst_SPI_memory extends Module {
     val CE = Output(Bool())
     val MOSI = Output(Bool())
     val MISO = Input(Bool())
+    val S_CLK = Output(Bool())
 
     //DEBUG io
     val SR = Output(UInt(4.W))
@@ -30,7 +31,7 @@ class OCPburst_SPI_memory extends Module {
   io.OCP_interface.S.Data := 0.U
 
 
-  val SPI = Module(new SPI(10))
+  val SPI = Module(new SPI(4))
   for(i <- 0 until 4){
     SPI.io.WriteData(i) := 0.U
   }
@@ -48,6 +49,7 @@ class OCPburst_SPI_memory extends Module {
   io.MOSI := SPI.io.MOSI
   io.CE := SPI.io.CE
   SPI.io.MISO := io.MISO
+  io.S_CLK := SPI.io.S_CLK;
 
   val slave_resp = RegInit(OcpResp.NULL)
   io.OCP_interface.S.Resp := slave_resp;

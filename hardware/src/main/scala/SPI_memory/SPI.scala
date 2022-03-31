@@ -29,7 +29,7 @@ class SPI(Count: Int) extends Module {
     val CE = Output(Bool())
     val MOSI = Output(Bool())
     val MISO = Input(Bool())
-    val SCLK = Output(Bool())
+    val S_CLK = Output(Bool())
     //val StateReg = Output()
     //val CntReg = Output(UInt(8.W));
     //val PosReg = Output(UInt(4.W));
@@ -55,11 +55,14 @@ class SPI(Count: Int) extends Module {
 
   val boot :: resetEnable :: resetWait :: setReset :: idle :: read :: write :: Nil = Enum(7)
   val StateReg = RegInit(boot)
+  StateReg := boot;
 
   val transmitCMD :: transmitAddress :: transmitData :: writeDelay :: receiveData :: computeAddress :: Nil = Enum(6)
   val SubStateReg = RegInit(transmitCMD)
+  SubStateReg := transmitCMD;
 
-  val CntReg = RegInit(0.U(14.W))
+  val CntReg = RegInit(0.U(16.W))
+  CntReg := 0.U;
 
   /*
   TempAddress is the starting address of the current burst.
@@ -103,7 +106,7 @@ class SPI(Count: Int) extends Module {
   RisingEdge := false.B
   FallingEdge := false.B
 
-  io.SCLK := (ClkReg & ClockEn)
+  io.S_CLK := (ClkReg & ClockEn)
 
   ClkCounter := ClkCounter + 1.U
 
@@ -139,11 +142,10 @@ class SPI(Count: Int) extends Module {
   switch(StateReg) {
     is(boot){
       // Resets clock for reset command
-
       CntReg := CntReg + 1.U
+      StateReg := boot
 
-      when(CntReg === "h3fff".U){
-        io.CE := false.B
+      when(CntReg === "h000f".U){
         ClockReset := true.B
         StateReg := resetEnable
         CntReg := 0.U
@@ -152,7 +154,7 @@ class SPI(Count: Int) extends Module {
     is(resetEnable) {
       io.CE := false.B
       ClockEn := true.B
-
+      StateReg := resetEnable
       io.MOSI := CMDResetEnable(7.U - CntReg)
 
       when(NextStateInv){
@@ -169,6 +171,7 @@ class SPI(Count: Int) extends Module {
     is(resetWait){
       // A Delay between the two commands
       io.CE := true.B
+      StateReg := resetWait
 
       when(NextStateInv){
         ClockReset := true.B
@@ -178,6 +181,7 @@ class SPI(Count: Int) extends Module {
     is(setReset) {
       io.CE := false.B
       ClockEn := true.B
+      StateReg := setReset
 
       io.MOSI := CMDReset(7.U - CntReg)
 
@@ -195,7 +199,7 @@ class SPI(Count: Int) extends Module {
     }
     is(idle) {
       // Waits for command from main
-
+      StateReg := idle
       io.CE := true.B
 
       when(io.ReadEnable) {
@@ -204,12 +208,14 @@ class SPI(Count: Int) extends Module {
         io.CE := false.B
         ClockReset := true.B
       }
-        . elsewhen(io.WriteEnable) {
-          StateReg := write
-          SubStateReg := computeAddress
-        }
+      . elsewhen(io.WriteEnable) {
+        StateReg := write
+        SubStateReg := computeAddress
+      }
     }
     is(read) {
+      StateReg := read
+
       switch(SubStateReg) {
         is(transmitCMD) {
           io.CE := false.B
@@ -247,7 +253,7 @@ class SPI(Count: Int) extends Module {
         is(receiveData) {
           io.CE := false.B
           ClockEn := true.B
-
+          SubStateReg := receiveData
           // Reads on the rising edge of SCLK
 
           when(RisingEdge){
@@ -264,6 +270,7 @@ class SPI(Count: Int) extends Module {
     }
     is(write) {
       //SubStateReg := computeAddress
+      StateReg := write
 
       switch(SubStateReg) {
         is(computeAddress) {

@@ -23,6 +23,8 @@ class Software_Memory_Sim(dut: OCPburst_SPI_memory, fail_callback: () => Unit) {
   var state = STATE.NULL;
   var clock_cycle = 0;
 
+  var last_clock = false
+
   def bitsToByte(bits : Array[Boolean]) : Char = {
     var amount = 0;
     for(i <- 1 until bits.length){
@@ -66,9 +68,29 @@ class Software_Memory_Sim(dut: OCPburst_SPI_memory, fail_callback: () => Unit) {
 
   }
 
+  def rising_edge(b : Boolean): Boolean ={
+
+    val last = last_clock
+    last_clock = b;
+
+    if(b == false)
+      return false;
+    else{
+      if(last == true)
+        return false;
+      else
+        return true
+    }
+  }
+
   def step (n : Int = 1) : Unit = {
 
     for( a <- 0 to n-1){
+
+      while(rising_edge(dut.io.S_CLK.peek().litToBoolean) == false){
+        println("S_CLK: " + dut.io.S_CLK.peek().litToBoolean)
+        dut.clock.step();
+      };
 
       if(dut.io.CE.peek().litValue() == 0 && dut.reset.peek().litValue() == 0){
 
@@ -96,9 +118,6 @@ class Software_Memory_Sim(dut: OCPburst_SPI_memory, fail_callback: () => Unit) {
         bits_read = bits_read + 1;
       }
 
-      dut.clock.step();
-
-
     }
   };
 }
@@ -113,9 +132,6 @@ class OCPburst_SPI_memory_test extends AnyFlatSpec with ChiselScalatestTester
 
       val Software_Memory_Sim = new Software_Memory_Sim(dut, fail);
       dut.clock.step();
-
-      Software_Memory_Sim.step(24); //
-      ////////////////////////////////
 
       //////// clock cycle 1 /////////
       master.Cmd.poke(OcpCmd.IDLE)
@@ -134,7 +150,7 @@ class OCPburst_SPI_memory_test extends AnyFlatSpec with ChiselScalatestTester
       slave.Resp.expect(0.U);
       dut.io.SR.expect(0.U);
 
-      Software_Memory_Sim.step(); //B
+      dut.clock.step();
 
       slave.CmdAccept.expect(true.B);
       slave.Resp.expect(OcpResp.NULL);
@@ -148,13 +164,18 @@ class OCPburst_SPI_memory_test extends AnyFlatSpec with ChiselScalatestTester
       master.DataByteEn.poke(0xFF.U) //it just cuts the bits?? maybe?
       dut.io.CntReg.expect(0.U);
 
-      while(slave.Resp.peek().litValue() != OcpResp.DVA.litValue()) {
+      var count = 0;
+      val max_count = 10000;
+      while(slave.Resp.peek().litValue() != OcpResp.DVA.litValue() && count < max_count) {
         //dut.io.SR.expect(1.U);
         //dut.io.SPI_DATA_VALUD.expect(false.B);
 
+        count = count + 1;
+
         if(slave.Resp.peek().litValue() == OcpResp.NULL.litValue()){
           Software_Memory_Sim.step();
-          println("stepped, while waiting for data ready")
+          //println("stepped, while waiting for data ready")
+
         }
         else if(slave.Resp.peek().litValue() == OcpResp.ERR.litValue()) {
           fail()
@@ -169,6 +190,11 @@ class OCPburst_SPI_memory_test extends AnyFlatSpec with ChiselScalatestTester
           println(slave.Resp.peek())
           fail()
         }
+      };
+
+      if(count >= max_count-1) {
+        println(Console.RED + "Too many steps, we stepped for " + (count) + " clocks" + Console.RESET)
+        fail();
       };
 
       dut.io.CntReg.expect(0.U)
@@ -197,6 +223,7 @@ class OCPburst_SPI_memory_test extends AnyFlatSpec with ChiselScalatestTester
     }
   }
 
+  /*
   "Write OCP test software" should "pass" in {
     test(new OCPburst_SPI_memory()).withAnnotations(Seq(WriteVcdAnnotation)) { dut =>
 
@@ -287,7 +314,7 @@ class OCPburst_SPI_memory_test extends AnyFlatSpec with ChiselScalatestTester
 
     }
   }
-
+  */
 
 }
 
