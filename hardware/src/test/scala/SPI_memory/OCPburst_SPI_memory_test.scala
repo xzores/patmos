@@ -328,7 +328,7 @@ class OCP_master_commands(master : OcpBurstMasterSignals, slave : OcpBurstSlaveS
 
 class OCPburst_SPI_memory_test extends AnyFlatSpec with ChiselScalatestTester
 {
-  "SPI test 1 software" should "pass" in {
+  "SPI read test software" should "pass" in {
     test(new SPI(2)).withAnnotations(Seq(WriteVcdAnnotation)) { dut =>
 
       val Software_Memory_Sim = new Software_Memory_Sim(dut, dut.io, fail);
@@ -359,6 +359,48 @@ class OCPburst_SPI_memory_test extends AnyFlatSpec with ChiselScalatestTester
       }
 
       Software_Memory_Sim.step(20);
+
+    }
+  }
+
+  "SPI write test software" should "pass" in {
+    test(new SPI(2)).withAnnotations(Seq(WriteVcdAnnotation)) { dut =>
+
+      val Software_Memory_Sim = new Software_Memory_Sim(dut, dut.io, fail);
+
+      dut.clock.setTimeout(10000);
+      Software_Memory_Sim.step(200);//wait for startup
+      dut.io.CE.expect(true.B)
+
+      Software_Memory_Sim.step();
+      dut.io.Address.poke(0x0F0F0F.U);
+      dut.io.WriteEnable.poke(true.B);
+      dut.io.WriteData(0).poke(0xC0C.U);
+      dut.io.WriteData(1).poke(0xC0C.U);
+      dut.io.WriteData(2).poke(0xC0C.U);
+      dut.io.WriteData(3).poke(0xC0C.U);
+      Software_Memory_Sim.step();
+      dut.io.WriteEnable.poke(false.B);
+
+      while(dut.io.DataValid.peek().litToBoolean == false){
+        Software_Memory_Sim.step();
+      }
+
+      Software_Memory_Sim.step(100);
+
+      Software_Memory_Sim.step();
+      dut.io.Address.poke(0x0F0F0F.U);
+      dut.io.WriteEnable.poke(true.B);
+      dut.io.WriteData(0).poke(0xC0C.U);
+      dut.io.WriteData(1).poke(0xC0C.U);
+      dut.io.WriteData(2).poke(0xC0C.U);
+      dut.io.WriteData(3).poke(0xC0C.U);
+      Software_Memory_Sim.step();
+      dut.io.WriteEnable.poke(false.B);
+
+      while(dut.io.DataValid.peek().litToBoolean == false){
+        Software_Memory_Sim.step();
+      }
 
     }
   }
